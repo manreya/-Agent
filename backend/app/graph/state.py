@@ -47,7 +47,7 @@ class EventPlanState(TypedDict, total=False):
     preferences: Annotated[List, operator.add]   # List[PersonPref], 多批写入自动拼接
     pref_summary: Optional[PrefSummary]          # aggregate_prefs 节点产出的汇总
 
-    # ---- 基础信息(gather_info 节点产出, 节点内部五路并行采集) ----
+    # ---- 基础信息(gather_info 节点产出, 节点内部六路并行采集) ----
     basic_info: Optional[dict]                   # BasicInfo.model_dump()(venues/weather/route_info)
 
     # ---- 数据可用性(gather_info 节点产出) ----

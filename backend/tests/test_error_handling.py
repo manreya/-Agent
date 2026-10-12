@@ -583,7 +583,7 @@ class TestGatherInfoBoundary(unittest.IsolatedAsyncioTestCase):
         self.addCleanup(p.stop)
 
     def _patch_clients(self, **overrides):
-        """把三路外部客户端全部换成假函数(不触网), overrides 里放要制造异常的几路"""
+        """把三个外部客户端模块的函数全部换成假函数(不触网), overrides 里放要制造异常的几路"""
         from app.graph import amap_client, bocha_client, train_client
         from app.models.schemas import Location
 
@@ -671,7 +671,7 @@ class TestGatherInfoBoundary(unittest.IsolatedAsyncioTestCase):
             await gather_info(_state())
 
     async def test_missing_required_config_raises_not_degrades(self):
-        """必需配置缺失必须让节点失败: 五路皆空时下游只会编出一份假方案"""
+        """必需配置缺失必须让节点失败: 六路皆空时下游只会编出一份假方案"""
         from app.graph.nodes import gather_info
 
         self._patch_clients(

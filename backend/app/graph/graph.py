@@ -4,7 +4,7 @@
     START -> parse_request (结构化输入零 LLM 直接组装; 自由文本才走 LLM 抽取,
                              team_id 有历史时注入"上次你们……"上下文)
           -> aggregate_prefs (偏好聚合)
-          -> gather_info (三路并行采集, 零LLM)
+          -> gather_info (六路并行采集, 零LLM)
           -> [Send 派发] -> propose_transport ┐
                         -> propose_venue     ├ 四路并行 LLM 提案
                         -> propose_flow      │
