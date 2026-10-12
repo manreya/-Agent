@@ -1,0 +1,1765 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "团建活动策划助手",
+    "description": "基于 LangGraph 编排的智能团建活动策划助手API",
+    "version": "1.0.0"
+  },
+  "paths": {
+    "/api/event/parse": {
+      "post": {
+        "tags": [
+          "团建活动策划"
+        ],
+        "summary": "需求解析: 原始文本 -> 结构化 EventRequest",
+        "description": "自由文本入口(唯一会调 LLM 做抽取的端点): 抽取 人数/日期/预算/出发地/活动类型; 缺关键字段(人数/日期/出发地)或日期早于今天返回 400 + missing_fields, 不进入后续编排。表单类前端请改走 /plan 的结构化入参, 少一次 LLM 且不会抽错。",
+        "operationId": "parse_event_api_event_parse_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EventParseBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EventRequest"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/event/plan": {
+      "post": {
+        "tags": [
+          "团建活动策划"
+        ],
+        "summary": "发起团建活动策划流程(HITL: 生成后暂停等待人工审批)",
+        "description": "**结构化入参**(人数/日期/出发地必填; 预算=总预算; 日期=YYYY-MM-DD)。编排: 需求组装(零 LLM) -> 偏好聚合 -> 基础信息采集 -> 四路并行提案 -> reconcile 约束消解(回环) -> risk 风险评估 -> approval 人工审批(interrupt 暂停)。返回 thread_id + approval_payload; 用 POST /resume 提交审批结果继续流程。审批通过后走 checklist 任务清单 + memory 团队记忆写入。状态经 AsyncSqliteSaver 持久化到 backend/data/checkpoints.db, 跨进程可恢复。",
+        "operationId": "plan_event_api_event_plan_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PlanStartBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlanStartResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/event/resume": {
+      "post": {
+        "tags": [
+          "团建活动策划"
+        ],
+        "summary": "提交审批结果并恢复流程(HITL)",
+        "description": "approved=True: Command(resume) 放行 -> 流程结束返回最终方案; approved=False+feedback: 意见写入 user_feedback -> 路由回 aggregate_prefs 重走, 意见注入四路提案 prompt, 生成后再次暂停等待审批。状态从 checkpoint 恢复, 支持进程重启后继续(thread_id 不变)。",
+        "operationId": "resume_event_api_event_resume_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResumeBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlanStartResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/event/health": {
+      "get": {
+        "tags": [
+          "团建活动策划"
+        ],
+        "summary": "健康检查",
+        "description": "检查团建活动策划图是否正常(含 checkpoint/store 可写性探活)",
+        "operationId": "health_check_api_event_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/poi/detail/{poi_id}": {
+      "get": {
+        "tags": [
+          "POI"
+        ],
+        "summary": "获取POI详情",
+        "description": "根据POI ID获取详细信息,包括图片",
+        "operationId": "get_poi_detail_api_poi_detail__poi_id__get",
+        "parameters": [
+          {
+            "name": "poi_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Poi Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/POIDetailResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/poi/search": {
+      "get": {
+        "tags": [
+          "POI"
+        ],
+        "summary": "搜索POI",
+        "description": "根据关键词搜索POI",
+        "operationId": "search_poi_api_poi_search_get",
+        "parameters": [
+          {
+            "name": "keywords",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Keywords"
+            }
+          },
+          {
+            "name": "city",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "北京",
+              "title": "City"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/poi/photo": {
+      "get": {
+        "tags": [
+          "POI"
+        ],
+        "summary": "获取景点图片",
+        "description": "根据景点名称从Unsplash获取图片",
+        "operationId": "get_attraction_photo_api_poi_photo_get",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Name"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/map/poi": {
+      "get": {
+        "tags": [
+          "地图服务"
+        ],
+        "summary": "搜索POI",
+        "description": "根据关键词搜索POI(兴趣点); 城市名会自动归一化(如『杭州西湖区』-> 杭州市)",
+        "operationId": "search_poi_api_map_poi_get",
+        "parameters": [
+          {
+            "name": "keywords",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "搜索关键词",
+              "examples": [
+                "团建场地"
+              ],
+              "title": "Keywords"
+            },
+            "description": "搜索关键词"
+          },
+          {
+            "name": "city",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "城市",
+              "examples": [
+                "杭州"
+              ],
+              "title": "City"
+            },
+            "description": "城市"
+          },
+          {
+            "name": "citylimit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "是否限制在城市范围内",
+              "default": true,
+              "title": "Citylimit"
+            },
+            "description": "是否限制在城市范围内"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/POISearchResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/map/weather": {
+      "get": {
+        "tags": [
+          "地图服务"
+        ],
+        "summary": "查询天气",
+        "description": "查询指定城市的天气信息(高德仅提供未来3-4天预报)",
+        "operationId": "get_weather_api_map_weather_get",
+        "parameters": [
+          {
+            "name": "city",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "城市名称",
+              "examples": [
+                "杭州"
+              ],
+              "title": "City"
+            },
+            "description": "城市名称"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WeatherResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/map/route": {
+      "post": {
+        "tags": [
+          "地图服务"
+        ],
+        "summary": "规划路线",
+        "description": "规划两点之间的路线",
+        "operationId": "plan_route_api_map_route_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RouteRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RouteResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/map/health": {
+      "get": {
+        "tags": [
+          "地图服务"
+        ],
+        "summary": "健康检查",
+        "description": "检查地图服务是否正常",
+        "operationId": "health_check_api_map_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/": {
+      "get": {
+        "summary": "Root",
+        "description": "根路径",
+        "operationId": "root__get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health": {
+      "get": {
+        "summary": "Health",
+        "description": "健康检查",
+        "operationId": "health_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "EventParseBody": {
+        "properties": {
+          "raw_text": {
+            "type": "string",
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Raw Text",
+            "description": "用户原始输入(自由文本)",
+            "example": "10月底组织30人团建，预算3万，上海周边一天"
+          },
+          "team_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Team Id",
+            "description": "团队ID(可选; 有历史活动记录时解析 prompt 会注入'上次你们……'上下文)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "raw_text"
+        ],
+        "title": "EventParseBody",
+        "description": "需求解析请求体(自由文本入口)"
+      },
+      "EventPlan": {
+        "properties": {
+          "proposals": {
+            "items": {
+              "$ref": "#/components/schemas/Proposal"
+            },
+            "type": "array",
+            "title": "Proposals",
+            "description": "四路提案(transport/venue/flow/food 各一项,按category区分)"
+          },
+          "conflict_points": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Conflict Points",
+            "description": "冲突点"
+          },
+          "risk_report": {
+            "type": "string",
+            "title": "Risk Report",
+            "description": "风险报告",
+            "default": ""
+          },
+          "pref_coverage": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Pref Coverage",
+            "description": "偏好覆盖情况,如 {'爬山': '已覆盖(张三、李四)'}"
+          },
+          "checklist": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Checklist",
+            "description": "任务清单(TaskChecklist.model_dump(): 分工/采购/通知文案, 审批通过后产出)"
+          },
+          "memory_status": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Memory Status",
+            "description": "团队记忆写入结果(written/reason/retro_key)。写入可能因存储故障降级放行, 前端要如实告知, 不能假定已存档"
+          }
+        },
+        "type": "object",
+        "title": "EventPlan",
+        "description": "最终方案: 四路 Proposal 汇总"
+      },
+      "EventRequest": {
+        "properties": {
+          "raw_text": {
+            "type": "string",
+            "title": "Raw Text",
+            "description": "用户原始输入文本(结构化输入时可为空)",
+            "default": "",
+            "example": "20人团建,预算1万,10月1日北京出发"
+          },
+          "people_count": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "People Count",
+            "description": "参与人数(LLM抽取)"
+          },
+          "date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Date",
+            "description": "活动开始日期 YYYY-MM-DD(LLM抽取)"
+          },
+          "date_end": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Date End",
+            "description": "活动结束日期 YYYY-MM-DD(多日活动填写, 单日/未提及为 null)(LLM抽取)"
+          },
+          "budget": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Budget",
+            "description": "总预算(元; 非人均)(LLM抽取)"
+          },
+          "origin": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Origin",
+            "description": "出发地/集合地(LLM抽取)"
+          },
+          "destination": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Destination",
+            "description": "目的地/活动城市(与出发地同城可缺省, LLM抽取)"
+          },
+          "transport_pref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Transport Pref",
+            "description": "优先通行方式,如 高铁/自驾/大巴/不限(LLM抽取)"
+          },
+          "activity_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Activity Type",
+            "description": "活动类型,如 团建/聚餐/户外(LLM抽取)"
+          },
+          "missing_fields": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Missing Fields",
+            "description": "缺失的必填项 key 列表"
+          }
+        },
+        "type": "object",
+        "title": "EventRequest",
+        "description": "团建活动策划请求(规范化后的结构化需求)\n\n两个来源共用本模型:\n- 表单/API 直传的结构化输入 -> 程序化组装(零 LLM);\n- 自由文本 -> LLM 抽取(缺失项记录在 missing_fields, 由调用方驱动补全)。\n因此 raw_text 默认空串: 结构化输入时没有原文可填, 也不该强迫 LLM 回抄。",
+        "example": {
+          "activity_type": "户外拓展",
+          "budget": 10000.0,
+          "date": "2026-10-01",
+          "missing_fields": [],
+          "origin": "北京",
+          "people_count": 20,
+          "raw_text": "20人团建,预算1万,10月1日北京出发,想搞户外拓展"
+        }
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "Location": {
+        "properties": {
+          "longitude": {
+            "type": "number",
+            "title": "Longitude",
+            "description": "经度"
+          },
+          "latitude": {
+            "type": "number",
+            "title": "Latitude",
+            "description": "纬度"
+          }
+        },
+        "type": "object",
+        "required": [
+          "longitude",
+          "latitude"
+        ],
+        "title": "Location",
+        "description": "地理位置"
+      },
+      "MealOptions": {
+        "properties": {
+          "day": {
+            "type": "string",
+            "title": "Day",
+            "description": "所属天次, 如 'D1'(多日)或 '当天'(单日)"
+          },
+          "meal_type": {
+            "type": "string",
+            "title": "Meal Type",
+            "description": "餐次: 早餐/午餐/晚餐"
+          },
+          "options": {
+            "items": {
+              "$ref": "#/components/schemas/ProposalOption"
+            },
+            "type": "array",
+            "title": "Options",
+            "description": "该顿 2-3 家候选餐厅"
+          }
+        },
+        "type": "object",
+        "required": [
+          "day",
+          "meal_type"
+        ],
+        "title": "MealOptions",
+        "description": "单顿餐饮的候选餐厅组(逐顿挑选, 审批页按 顿 勾选)"
+      },
+      "POIDetailResponse": {
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "title": "Success"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          },
+          "data": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Data"
+          }
+        },
+        "type": "object",
+        "required": [
+          "success",
+          "message"
+        ],
+        "title": "POIDetailResponse",
+        "description": "POI详情响应"
+      },
+      "POIInfo": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id",
+            "description": "POI ID"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "description": "名称"
+          },
+          "type": {
+            "type": "string",
+            "title": "Type",
+            "description": "类型"
+          },
+          "address": {
+            "type": "string",
+            "title": "Address",
+            "description": "地址"
+          },
+          "location": {
+            "$ref": "#/components/schemas/Location",
+            "description": "经纬度坐标"
+          },
+          "tel": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tel",
+            "description": "电话"
+          },
+          "rating": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rating",
+            "description": "评分(高德原始字符串,如 '4.5')"
+          },
+          "cost": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost",
+            "description": "人均消费(元,高德原始字符串)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "type",
+          "address",
+          "location"
+        ],
+        "title": "POIInfo",
+        "description": "POI信息(高德原始搜索结果)"
+      },
+      "POISearchResponse": {
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "title": "Success",
+            "description": "是否成功"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message",
+            "description": "消息",
+            "default": ""
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/POIInfo"
+            },
+            "type": "array",
+            "title": "Data",
+            "description": "POI列表"
+          }
+        },
+        "type": "object",
+        "required": [
+          "success"
+        ],
+        "title": "POISearchResponse",
+        "description": "POI搜索响应"
+      },
+      "PersonPref": {
+        "properties": {
+          "person_name": {
+            "type": "string",
+            "maxLength": 50,
+            "title": "Person Name",
+            "description": "成员姓名/标识"
+          },
+          "headcount": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Headcount",
+            "description": "本行代表人数(逐人=1, 全员汇总行=总人数)",
+            "default": 1
+          },
+          "activity_prefs": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 20,
+            "title": "Activity Prefs",
+            "description": "活动偏好标签",
+            "example": [
+              "爬山",
+              "剧本杀"
+            ]
+          },
+          "fitness_level": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 5.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fitness Level",
+            "description": "体能水平 1-5; 未填写为 None(不参与体能分布)"
+          },
+          "dietary": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 20,
+            "title": "Dietary",
+            "description": "饮食禁忌/偏好",
+            "example": [
+              "素食"
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "person_name"
+        ],
+        "title": "PersonPref",
+        "description": "单成员偏好\n\n所有字段都带长度上限: 偏好是**用户输入**的一部分, 不设界的话一次请求可以\n提交任意长的姓名/任意多标签, 直接进 prompt 撑爆 context。\n\nheadcount 声明\"这一行代表几个人\": 表单既可以只提交 1 条\"全员汇总\", 也可以\n逐人提交 N 条。旧的 len(prefs)==1 猜法无法区分\"1 人团队\"和\"代表 30 人的汇总\n行\", 代填场景会把 1 个人的票放大成 30 个人; 现在由调用方声明, 统计一律\n+= headcount。\n\nfitness_level 允许为 None: 默认值 3 会让\"没填体能\"的人静默进体能分布, 稀释\n_detect_intensity_conflict 的弱体能占比(阈值 25%), 把真冲突掩盖成假阴性。\n未表态就该是未表态。"
+      },
+      "PlaceInput": {
+        "properties": {
+          "province": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 30
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Province",
+            "description": "省级名称, 如 河南省"
+          },
+          "city": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 30
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "City",
+            "description": "地级名称, 如 洛阳市"
+          },
+          "district": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 30
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "District",
+            "description": "区县名称, 如 栾川县"
+          },
+          "adcode": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 12
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Adcode",
+            "description": "前端静态表带的区划码; 仅作交叉校验, 归属不采信它"
+          },
+          "detail": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 50
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Detail",
+            "description": "更具体的地点, 如 老君山; 只当锚点坐标与检索词"
+          }
+        },
+        "type": "object",
+        "title": "PlaceInput",
+        "description": "结构化地点入参(前端省市县选择 + 自由输入的\"更具体地点\")\n\n为什么单独建模, 而不是把省市县拼进 origin/destination 字符串: 拼成一个串\n再让后端去切分\"哪截是省、哪截是市\", 就是昨天修掉的那类问题。这里把**用户\n的选择**当权威归属, 字段名即语义。\n\n两条关键口径:\n- adcode 只作交叉校验: 前端静态表可能滞后(撤县设区), 归属一律由**名字**\n  重新解析, 不采信传进来的码;\n- detail 只当锚点坐标与检索词(如\"老君山\"), 不参与归属判定。\n\n注意本模型**不挂 EventRequest**: nodes.parse_request 的自由文本路径拿\nEventRequest 当 LLM 的工具 schema(nodes.py:244 \"invoke_structured(EventRequest, ...)\"),\n把地点入参放上去等于让 LLM 去填一份\"权威归属\" —— 而幻觉出来的 hint 会直接\n跳过 _name_related 等所有猜测闸门, 比没有 hint 更糟。故它只走入口契约\n(PlanStartBody)与 raw_request[\"structured\"], 由 gather_info 读取。"
+      },
+      "PlanStartBody": {
+        "properties": {
+          "people_count": {
+            "type": "integer",
+            "maximum": 500.0,
+            "minimum": 1.0,
+            "title": "People Count",
+            "description": "参与人数"
+          },
+          "date": {
+            "type": "string",
+            "format": "date",
+            "title": "Date",
+            "description": "活动开始日期 YYYY-MM-DD"
+          },
+          "date_end": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Date End",
+            "description": "活动结束日期(多日活动; 单日留空)"
+          },
+          "budget": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Budget",
+            "description": "总预算(元; 非人均)"
+          },
+          "origin": {
+            "type": "string",
+            "maxLength": 50,
+            "minLength": 1,
+            "title": "Origin",
+            "description": "出发地/集合地"
+          },
+          "destination": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 50
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Destination",
+            "description": "目的地(同城可留空)"
+          },
+          "origin_place": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PlaceInput"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "出发地的省市县选择 + 更具体地点(可选; 给了就不再猜归属)"
+          },
+          "destination_place": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PlaceInput"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "目的地的省市县选择 + 更具体地点(可选; 给了就不再猜归属)"
+          },
+          "transport_pref": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 20
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Transport Pref",
+            "description": "优先通行方式"
+          },
+          "activity_type": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 30
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Activity Type",
+            "description": "活动类型,如 团建/生日会"
+          },
+          "raw_text": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Raw Text",
+            "description": "用户原话(可选; 仅留痕展示, 不参与结构化抽取)"
+          },
+          "team_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Team Id",
+            "description": "团队ID(可选; 服务端签发的不透明 id 才会被复用, 手填的会被忽略并重新生成)"
+          },
+          "preferences": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/PersonPref"
+                },
+                "type": "array",
+                "maxItems": 200
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Preferences",
+            "description": "成员偏好(可选; 随 /plan 一次提交, 无需再调 /preferences)。每条 PersonPref.headcount 声明该行代表几个人: 逐人填写=1, 一条'全员汇总'=总人数"
+          }
+        },
+        "type": "object",
+        "required": [
+          "people_count",
+          "date",
+          "origin"
+        ],
+        "title": "PlanStartBody",
+        "description": "发起策划流程请求体(**结构化**, 非自由文本)\n\n为什么直接收结构化字段而不收句子: 前端表单本来就握着精确值\n(人数/日期区间/预算/出发地), 把它们拼成一句话再让 LLM 抽回来是纯亏 ——\n既多花一次 LLM, 又会抽错(如\"人均预算1000元(总30000元)\"到底算哪个)。\n这里把口径钉死在入口: 人数/开始日期/出发地为必填, 预算一律为**总预算**,\n日期一律为 **YYYY-MM-DD**。搭配 parse_request 的结构化分支, 这条主路径\n零 LLM 调用。\n\n自由文本入口保留在 /parse(那里缺字段是正常结果, 才需要 missing_fields 追问);\nraw_text 在本模型里只是可选的\"原话\", 供日志/复盘留痕, 不参与抽取。"
+      },
+      "PlanStartResponse": {
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "title": "Success",
+            "description": "是否成功"
+          },
+          "thread_id": {
+            "type": "string",
+            "title": "Thread Id",
+            "description": "流程线程ID, resume 时回传"
+          },
+          "team_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Team Id",
+            "description": "本次使用的团队ID(服务端签发的不透明 id; 前端应持久化后续复用。请求里手填的 id 会被忽略 —— 明文可猜的 id 不能当访问凭证)"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status",
+            "description": "pending_approval(待审批) / completed(已完成)"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message",
+            "description": "消息",
+            "default": ""
+          },
+          "approval_payload": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Approval Payload",
+            "description": "interrupt payload: 最终方案/预算明细/分歧点/风险备选"
+          },
+          "data": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EventPlan"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "status=completed 时的最终方案"
+          }
+        },
+        "type": "object",
+        "required": [
+          "success",
+          "thread_id",
+          "status"
+        ],
+        "title": "PlanStartResponse",
+        "description": "发起/恢复策划流程响应(HITL)"
+      },
+      "Proposal": {
+        "properties": {
+          "category": {
+            "type": "string",
+            "enum": [
+              "transport",
+              "venue",
+              "flow",
+              "food"
+            ],
+            "title": "Category",
+            "description": "提案类别"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ProposalItem"
+            },
+            "type": "array",
+            "title": "Items",
+            "description": "报价明细"
+          },
+          "total_cost": {
+            "type": "number",
+            "minimum": 0.0,
+            "title": "Total Cost",
+            "description": "类别合计(元)",
+            "default": 0.0
+          },
+          "description": {
+            "type": "string",
+            "title": "Description",
+            "description": "方案说明",
+            "default": ""
+          },
+          "options": {
+            "items": {
+              "$ref": "#/components/schemas/ProposalOption"
+            },
+            "type": "array",
+            "title": "Options",
+            "description": "多候选备选(交通/餐饮类提供, 供审批页挑选)"
+          },
+          "meals": {
+            "items": {
+              "$ref": "#/components/schemas/MealOptions"
+            },
+            "type": "array",
+            "title": "Meals",
+            "description": "逐顿餐饮候选(餐饮类提案, 按 天次×餐次 分组)"
+          },
+          "route_segments": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Route Segments",
+            "description": "逐段转场路线(流程提案, 程序化调高德direction拼接, 如 '出发地→XX风景区: 驾车约25分钟(12.3km)')"
+          }
+        },
+        "type": "object",
+        "required": [
+          "category"
+        ],
+        "title": "Proposal",
+        "description": "单路提案(交通/场地/流程/餐饮)"
+      },
+      "ProposalItem": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "description": "明细名称"
+          },
+          "cost": {
+            "type": "number",
+            "minimum": 0.0,
+            "title": "Cost",
+            "description": "单项费用(元)"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note",
+            "description": "备注"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason",
+            "description": "结构化推荐理由(主推项必填, 1句话: 评分/人均/距离/与团队契合点, 及与备选的对比差异)"
+          },
+          "location": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Location",
+            "description": "活动地点(仅 flow 提案的活动项): {name, location(经度,纬度), address}, 必须取自真实 POI 候选, 不得编造"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "cost"
+        ],
+        "title": "ProposalItem",
+        "description": "报价明细单项"
+      },
+      "ProposalOption": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "description": "候选名称,如 '金 Grand 大巴 45座'/'G1024 高铁 二等座'"
+          },
+          "est_cost": {
+            "type": "number",
+            "minimum": 0.0,
+            "title": "Est Cost",
+            "description": "该候选预估费用(元, 总计)",
+            "default": 0.0
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note",
+            "description": "候选亮点/依据,如 '人均85, 距场地1.2km' 或 '票价来自12306查询'"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason",
+            "description": "结构化推荐理由(每个候选必填, 说明为何排在这个位置: 评分/人均/距离/口碑, 与其他候选的差异)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "ProposalOption",
+        "description": "多候选备选项(供审批页挑选, 如 3 家候选餐厅/多种交通方式)"
+      },
+      "ResumeBody": {
+        "properties": {
+          "thread_id": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Thread Id",
+            "description": "发起流程时返回的线程ID"
+          },
+          "approved": {
+            "type": "boolean",
+            "title": "Approved",
+            "description": "是否通过审批"
+          },
+          "feedback": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Feedback",
+            "description": "否决时的修改意见(approved=False 时生效, 注入重生成 prompt)"
+          },
+          "selections": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Selections",
+            "description": "多候选挑选结果(可选): {\"food\": \"候选餐厅名\", \"transport\": \"高铁/火车\"}; key=提案类别, value=审批页从 Proposal.options 中勾选的候选名"
+          }
+        },
+        "type": "object",
+        "required": [
+          "thread_id",
+          "approved"
+        ],
+        "title": "ResumeBody",
+        "description": "审批恢复请求体"
+      },
+      "RouteInfo": {
+        "properties": {
+          "distance": {
+            "type": "number",
+            "title": "Distance",
+            "description": "距离(米)"
+          },
+          "duration": {
+            "type": "integer",
+            "title": "Duration",
+            "description": "时间(秒)"
+          },
+          "route_type": {
+            "type": "string",
+            "title": "Route Type",
+            "description": "路线类型"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description",
+            "description": "路线描述"
+          }
+        },
+        "type": "object",
+        "required": [
+          "distance",
+          "duration",
+          "route_type",
+          "description"
+        ],
+        "title": "RouteInfo",
+        "description": "路线信息"
+      },
+      "RouteRequest": {
+        "properties": {
+          "origin_address": {
+            "type": "string",
+            "title": "Origin Address",
+            "description": "起点地址",
+            "example": "北京市朝阳区阜通东大街6号"
+          },
+          "destination_address": {
+            "type": "string",
+            "title": "Destination Address",
+            "description": "终点地址",
+            "example": "北京市海淀区上地十街10号"
+          },
+          "origin_city": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Origin City",
+            "description": "起点城市"
+          },
+          "destination_city": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Destination City",
+            "description": "终点城市"
+          },
+          "route_type": {
+            "type": "string",
+            "title": "Route Type",
+            "description": "路线类型: walking/driving/transit",
+            "default": "walking"
+          }
+        },
+        "type": "object",
+        "required": [
+          "origin_address",
+          "destination_address"
+        ],
+        "title": "RouteRequest",
+        "description": "路线规划请求"
+      },
+      "RouteResponse": {
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "title": "Success",
+            "description": "是否成功"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message",
+            "description": "消息",
+            "default": ""
+          },
+          "data": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RouteInfo"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "路线信息"
+          }
+        },
+        "type": "object",
+        "required": [
+          "success"
+        ],
+        "title": "RouteResponse",
+        "description": "路线规划响应"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      },
+      "WeatherInfo": {
+        "properties": {
+          "date": {
+            "type": "string",
+            "title": "Date",
+            "description": "日期 YYYY-MM-DD"
+          },
+          "day_weather": {
+            "type": "string",
+            "title": "Day Weather",
+            "description": "白天天气",
+            "default": ""
+          },
+          "night_weather": {
+            "type": "string",
+            "title": "Night Weather",
+            "description": "夜间天气",
+            "default": ""
+          },
+          "day_temp": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "title": "Day Temp",
+            "description": "白天温度",
+            "default": 0
+          },
+          "night_temp": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "title": "Night Temp",
+            "description": "夜间温度",
+            "default": 0
+          },
+          "wind_direction": {
+            "type": "string",
+            "title": "Wind Direction",
+            "description": "风向",
+            "default": ""
+          },
+          "wind_power": {
+            "type": "string",
+            "title": "Wind Power",
+            "description": "风力",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "date"
+        ],
+        "title": "WeatherInfo",
+        "description": "天气信息"
+      },
+      "WeatherResponse": {
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "title": "Success",
+            "description": "是否成功"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message",
+            "description": "消息",
+            "default": ""
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/WeatherInfo"
+            },
+            "type": "array",
+            "title": "Data",
+            "description": "天气信息"
+          }
+        },
+        "type": "object",
+        "required": [
+          "success"
+        ],
+        "title": "WeatherResponse",
+        "description": "天气查询响应"
+      }
+    }
+  }
+}

@@ -1,0 +1,59 @@
+# ==========================================================
+# 团建活动策划 Agent — 忽略规则
+# 原则：密钥 / 运行产物 / 本地配置 / 开发过程文件 一律不入库
+# ==========================================================
+
+# ---- Python ----
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# ---- 环境变量(含 API Key, 严禁提交)----
+.env
+.env.*
+!.env.example
+
+# ---- 运行时数据(绝不入库)----
+# checkpoint / 团队记忆 sqlite: 运行时状态, 含用户数据, 且会无限增长
+backend/data/*.db
+backend/data/*.db-journal
+backend/data/*.db-wal
+backend/data/*.db-shm
+
+# ---- 日志 ----
+*.log
+logs/
+
+# ---- 私有 / 开发过程文件(不公开)----
+# 个人面试题库、AI 改造提示词、历史备份、临时脚本
+_private/
+_backup_*/
+_tmp_pkg/
+面试题-*.txt
+
+# ---- 调试脚本目录(开发过程产物)----
+backend/_diag/
+# 启动日志与临时自检脚本
+backend/_*.log
+backend/_*.txt
+backend/_selfcheck_*.py
+backend/_import_check.py
+
+# ---- 工作区工具目录 ----
+.workbuddy/
+
+# ---- 前端 ----
+frontend/node_modules/
+frontend/dist/
+*.local
+
+# ---- 编辑器 / 系统 ----
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

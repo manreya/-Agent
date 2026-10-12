@@ -1,0 +1,151 @@
+{
+  "run_at": "2026-10-04 17:55:57",
+  "pass_rate": "4/5",
+  "results": [
+    {
+      "id": "C1_normal",
+      "name": "正常团建(一次通过)",
+      "passed": true,
+      "checks": [
+        {
+          "name": "四路提案产出",
+          "passed": true,
+          "detail": "keys=['flow', 'food', 'transport', 'venue']"
+        },
+        {
+          "name": "预算不超",
+          "passed": true,
+          "detail": "四路合计14130.0元 <= 预算30000.0元"
+        },
+        {
+          "name": "时间线不重叠",
+          "passed": true,
+          "detail": "6个时段两两不重叠: 09:00-09:30, 09:30-12:00, 12:00-13:30, 13:30-16:30, 16:30-17:00, 17:00-21:00"
+        },
+        {
+          "name": "场地名来自真实候选",
+          "passed": true,
+          "detail": "引用真实候选: 虹桥体育公园 等5个"
+        },
+        {
+          "name": "风险标记(期望无)",
+          "passed": true,
+          "detail": "flags=空"
+        },
+        {
+          "name": "LLM-judge 合理性>=3分",
+          "passed": true,
+          "detail": "3分: 预算内(结余15870元)、交通/场地/餐饮均取自真实候选且报价合理, 但流程提案全部\"地点待定、费用0元\"、未绑定任何真实POI与活动内容, 属明显可改进处, 整体可执行但需补全流程细节。"
+        }
+      ]
+    },
+    {
+      "id": "C2_over_budget",
+      "name": "必然超支(预算3000/30人)",
+      "passed": false,
+      "checks": [
+        {
+          "name": "执行异常",
+          "passed": false,
+          "detail": "ValueError: LLM 未返回 tool_calls"
+        }
+      ]
+    },
+    {
+      "id": "C3_rain_outdoor",
+      "name": "雨天+室外项目(mock 小雨, 应触发风险备选)",
+      "passed": true,
+      "checks": [
+        {
+          "name": "四路提案产出",
+          "passed": true,
+          "detail": "keys=['flow', 'food', 'transport', 'venue']"
+        },
+        {
+          "name": "预算不超",
+          "passed": true,
+          "detail": "四路合计13690.0元 <= 预算30000.0元"
+        },
+        {
+          "name": "时间线不重叠",
+          "passed": true,
+          "detail": "6个时段两两不重叠: 08:30-09:00, 09:00-12:00, 12:00-13:30, 13:30-16:00, 16:00-17:00, 17:00-17:30"
+        },
+        {
+          "name": "场地名来自真实候选",
+          "passed": true,
+          "detail": "引用真实候选: 上海飞悦森林探险乐园 等6个"
+        },
+        {
+          "name": "风险标记(期望有)",
+          "passed": true,
+          "detail": "flags=['雨天+室外项目: 预报降水(2026-10-31「小雨」), 流程含室外项目(09:00-12:00 户外拓展主项目(待投票确定具体活动); 13:30-16:00 户外拓展次项目(待投票确定具体活动)), 需准备室内备选']"
+        },
+        {
+          "name": "风险备选生成(带报价)",
+          "passed": true,
+          "detail": "2条备选"
+        },
+        {
+          "name": "LLM-judge 合理性>=3分",
+          "passed": true,
+          "detail": "4分: 预算结余16310元(总支出约13690元),交通/场地/餐饮单类目报价合理且场地来自真实候选,时间线无重叠;主要不足是流程路因投票数据为空全部标注\"待定\"、未回填具体活动与地点,可执行性依赖后续补充,但已诚实说明而非编造。"
+        }
+      ]
+    },
+    {
+      "id": "C4_pref_conflict",
+      "name": "偏好严重冲突(爬山5级体能 vs 剧本杀1级体能+素食)",
+      "passed": true,
+      "checks": [
+        {
+          "name": "四路提案产出",
+          "passed": true,
+          "detail": "keys=['flow', 'food', 'transport', 'venue']"
+        },
+        {
+          "name": "预算不超",
+          "passed": true,
+          "detail": "四路合计10750.0元 <= 预算30000.0元"
+        },
+        {
+          "name": "时间线不重叠",
+          "passed": true,
+          "detail": "8个时段两两不重叠: 08:30-09:00, 09:00-12:00, 12:00-13:30, 13:30-16:30, 16:30-17:30, 17:30-18:30, 18:30-19:30, 19:30-20:30"
+        },
+        {
+          "name": "场地名来自真实候选",
+          "passed": true,
+          "detail": "引用真实候选: 南京路步行街 等3个"
+        },
+        {
+          "name": "偏好冲突点检出",
+          "passed": true,
+          "detail": "7条: ['爬山5人 vs 剧本杀5人, 两大热门活动票数持平, 难以取舍', '徒步2人 vs 桌游2人, 次热门活动同样平分秋色']"
+        },
+        {
+          "name": "LLM-judge 合理性>=3分",
+          "passed": true,
+          "detail": "3分: 预算结余19250元、交通/餐饮报价合理且素食忌口全覆盖，但流程路线的爬山、剧本杀、徒步、桌游、攀岩全部\"地点待定\"且零成本，与场地路只落实外滩（无山地、无剧本杀门店）严重脱节，最高票的两大活动实际无法落地，属明显可改进而非不可用。"
+        }
+      ]
+    },
+    {
+      "id": "C5_missing_info",
+      "name": "信息缺失(只有'组织一次团建')",
+      "passed": true,
+      "checks": [
+        {
+          "name": "缺失字段含 ['people_count', 'date']",
+          "passed": true,
+          "detail": "实际 missing_fields=['people_count', 'date', 'budget', 'origin']"
+        },
+        {
+          "name": "不进入提案阶段",
+          "passed": true,
+          "detail": "proposals=空"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,96 @@
+{
+  "version": "1.0",
+  "description": "团建活动策划 Agent 评测金标准用例。type=full_flow 跑完整图(到审批闸门自动通过), type=parse_only 只跑轻量解析流程。",
+  "cases": [
+    {
+      "id": "C1_normal",
+      "name": "正常团建(一次通过)",
+      "type": "full_flow",
+      "input": {
+        "raw_text": "10月底组织30人团建，预算3万，上海周边一天",
+        "team_id": "eval_c1_normal"
+      },
+      "expect": {
+        "over_budget_allowed": false,
+        "risk_flags_expected": false,
+        "conflict_points_expected": false,
+        "judge_min_score": 3
+      }
+    },
+    {
+      "id": "C2_over_budget",
+      "name": "必然超支(预算3000/30人)",
+      "type": "full_flow",
+      "input": {
+        "raw_text": "10月底组织30人团建，预算3000元，上海周边一天",
+        "team_id": "eval_c2_over"
+      },
+      "expect": {
+        "over_budget_allowed": true,
+        "conflict_report_expected": true,
+        "judge_mode": "over_budget",
+        "judge_min_score": 3
+      }
+    },
+    {
+      "id": "C3_rain_outdoor",
+      "name": "雨天+室外项目(mock 小雨, 应触发风险备选)",
+      "type": "full_flow",
+      "mock_weather": {
+        "dates": ["2025-10-31", "2026-10-31", "2027-10-31"],
+        "day_weather": "小雨",
+        "night_weather": "阴",
+        "day_temp": 18,
+        "night_temp": 12
+      },
+      "input": {
+        "raw_text": "10月31日组织30人户外拓展团建，要有攀岩和定向越野，预算3万，上海出发一天",
+        "team_id": "eval_c3_rain"
+      },
+      "expect": {
+        "over_budget_allowed": false,
+        "risk_flags_expected": true,
+        "risk_alternatives_expected": true,
+        "judge_min_score": 3
+      }
+    },
+    {
+      "id": "C4_pref_conflict",
+      "name": "偏好严重冲突(爬山5级体能 vs 剧本杀1级体能+素食)",
+      "type": "full_flow",
+      "input": {
+        "raw_text": "10月底组织30人团建，预算3万，上海周边一天",
+        "team_id": "eval_c4_conflict",
+        "preferences": [
+          {"person_name": "成员A1", "activity_prefs": ["爬山"], "fitness_level": 5, "dietary": []},
+          {"person_name": "成员A2", "activity_prefs": ["爬山", "徒步"], "fitness_level": 5, "dietary": []},
+          {"person_name": "成员A3", "activity_prefs": ["爬山"], "fitness_level": 4, "dietary": []},
+          {"person_name": "成员A4", "activity_prefs": ["爬山", "攀岩"], "fitness_level": 5, "dietary": []},
+          {"person_name": "成员A5", "activity_prefs": ["徒步", "爬山"], "fitness_level": 4, "dietary": []},
+          {"person_name": "成员B1", "activity_prefs": ["剧本杀"], "fitness_level": 1, "dietary": ["素食"]},
+          {"person_name": "成员B2", "activity_prefs": ["剧本杀"], "fitness_level": 1, "dietary": ["素食"]},
+          {"person_name": "成员B3", "activity_prefs": ["剧本杀", "桌游"], "fitness_level": 2, "dietary": []},
+          {"person_name": "成员B4", "activity_prefs": ["剧本杀"], "fitness_level": 1, "dietary": ["素食"]},
+          {"person_name": "成员B5", "activity_prefs": ["桌游", "剧本杀"], "fitness_level": 2, "dietary": []}
+        ]
+      },
+      "expect": {
+        "over_budget_allowed": false,
+        "conflict_points_expected": true,
+        "judge_min_score": 3
+      }
+    },
+    {
+      "id": "C5_missing_info",
+      "name": "信息缺失(只有'组织一次团建')",
+      "type": "parse_only",
+      "input": {
+        "raw_text": "组织一次团建",
+        "team_id": "eval_c5_missing"
+      },
+      "expect": {
+        "missing_fields_required": ["people_count", "date"]
+      }
+    }
+  ]
+}
