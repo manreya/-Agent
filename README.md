@@ -23,7 +23,7 @@
 graph TD
     START([START]) --> PARSE[parse_request]
     PARSE --> AGG[aggregate_prefs]
-    AGG --> GATHER[gather_info<br/>三路并行采集]
+    AGG --> GATHER[gather_info<br/>六路并行采集 · 零 LLM]
     GATHER --> DISPATCH{dispatch_proposals}
     DISPATCH --> T[propose_transport]
     DISPATCH --> V[propose_venue]
